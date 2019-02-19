@@ -1,0 +1,544 @@
+---
+title: "CMP_Suisun_sondes_script"
+author: "Denise Colombano"
+date: "November 28, 2018"
+output: html_document
+---
+
+# Libraries
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+**For final tidy dataframe, skip down to Step 5**
+
+Units of measurement:
+
+Temp: water temperature measured in degrees Celsius (C)																							
+SpCond: specific conductivity measured in milli-Siemens per centimeter (mS/cm)
+CondmS/cm: conductivity measured in milli-Siemens per centimeter (mS/cm)
+Sal: salinity measured in parts per thousand (psu)																							
+DO_pct: dissolved oxygen measured in percent saturation (%)		
+DO_mgl: dissolved oxygen concentration measured in milligrams per Liter (mg/L)									
+Depth: sonde depth measured in meters (m)
+Turb: turbidity measured in either formazin nephelometric or nephelometric turbidity units (FNU/NTU) based on sensor; considered to be equivalent for SWMP purposes.
+
+
+Notes:
+
+- This script is the first exercise and accompanies the "CMP_Suisun_nutrients_script2"
+
+- I manually removed rows in the original files where the sonde was on and
+recording data but out of the water (i.e., being transported to/ from the site)
+
+- I discovered that the desired parameter, Specific conductivity (mS/cm), was not
+measured from July to September 2017. I created NA placeholders for these values
+in instances when this occurred. I recommend using salinity (ppt) and temperature (C)
+to retroactively calculate Specific conductivity (mS/cm) to fill in NAs.
+
+- The NERR records 15-min continuous data using standard local time (in winter). Because 
+the study was conducted during months in the Daylight Savings period (spring and summer),
+I created an additional column called "datetime_DLS" which is corrected for Daylight
+Savings.
+
+- The chlorophyll measurements have not yet been calibrated by water grabs; the
+Dahlgren lab is still conducting lab analyses on these filtered samples. Once we 
+receive them, they'll be used to create a "Chlorophyll_corrected" column.
+
+- If the user wants to use R projects to recreate my file path configuration, make 
+the following folder structure (which I will specify in a zip file format). The 
+folder "Data" has raw data; the folder "Data_output" has tidy data.
+
+CMP_hydro
+  sondes
+    Data
+      FirstMallard
+      LowerHill
+      LowerPeytonia
+      Sheldrake
+    Data_output
+  nutrients
+    Data
+    Data_output
+
+- I used hashtags to render "write_csv" functions inactive; you have to remove the
+hashtag and run the function if you want to write over my filename with a new one.
+This is to prevent the user from writing over/ changing the file that is in the
+Data_output folder I provide, unless desired of course. I recommend changing the 
+file name to avoid confusion if you do do this. Also: "write_csv" uses the package
+"readr" and it is non-trivial choice when exporting datetime POSIXct data, 
+beware of changing it to the "write.csv" base function
+
+--
+
+Step 1. 
+
+Import QC'd wq data generated from the SFSU NERR lab (subcontractors), which is compliant 
+with the SWMP long-term monitoring station standards.
+
+# Import wq data
+
+## Sheldrake
+```{r}
+# IMPORT DATA
+# 2017
+sd_june17 <- read_csv("sondes/Data/Sheldrake/sfbsdwq060817_QC.csv") %>% # checked
+  mutate(Deployment="2017-06-08")
+
+sd_july17 <- read_csv("sondes/Data/Sheldrake/sfbsdwq070617_QC.csv") %>% # checked
+  mutate(Deployment="2017-07-06")
+
+sd_july17_2 <- read_csv("sondes/Data/Sheldrake/sfbsdwq072017_QC.csv") %>% # checked
+  mutate(Deployment="2017-07-20")
+
+sd_aug17 <- read_csv("sondes/Data/Sheldrake/sfbsdwq081817_QC.csv") %>% # checked
+  mutate(Deployment="2017-08-18")
+
+sd_sep17 <- read_csv("sondes/Data/Sheldrake/sfbsdwq091417_QC.csv") %>% 
+  mutate(Deployment="2017-09-14") # removed negative depth rows at end in Excel
+
+# 2018
+sd_apr18 <- read_csv("sondes/Data/Sheldrake/SS041318_QC.csv") %>% 
+  mutate(Deployment="2018-04-13") # removed first 15 rows in Excel and last row to clean up points taken before/after sonde deployment
+
+sd_may18 <- read_csv("sondes/Data/Sheldrake/SS051118_QC.csv") %>% 
+  mutate(Deployment="2018-05-11") # removed last row in Excel
+
+sd_jun18 <- read_csv("sondes/Data/Sheldrake/SS060718_QC.csv") %>% 
+  mutate(Deployment="2018-06-07") # removed last row in Excel
+
+sd_jul18 <- read_csv("sondes/Data/Sheldrake/SS070518_QC.csv") %>% 
+  mutate(Deployment="2018-07-05") # removed last row in Excel
+
+sd_aug18 <- read_csv("sondes/Data/Sheldrake/sfbwqss080218_QC.csv") %>% 
+  mutate(Deployment="2018-08-02") # removed last row in Excel
+
+sd_sep18 <- read_csv("sondes/Data/Sheldrake/sfbwqss083018_QC.csv") %>% 
+  mutate(Deployment="2018-08-30") # removed first row and last 5
+
+
+# SUBSET DATA
+## Note: from July to September 2017, Sp Cond uS/cm was not measured by accident.
+## Need to use salinity (ppt) and temperature (*C) to calculate Sp Cond. Here I
+## put a temporary placeholder NA value for that future calculation.
+
+# 2017
+sd1wq <- sd_june17 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, `CondmS/cm`, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+sd2wq <- sd_july17 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+sd3wq <- sd_july17_2 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # # placeholder: no CondmS/cm measured
+  
+sd4wq <- sd_aug17 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+sd5wq <- sd_sep17 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>% 
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+# bind subset df together
+sd_wq_bind17 <-  rbind(sd1wq,sd2wq,sd3wq,sd4wq,sd5wq)
+
+# create datetime column and specify as POSIXct format
+sd_wq_bind17 <- sd_wq_bind17 %>%  
+  unite(datetime,Date,Time, sep=" ") 
+sd_wq_bind17$datetime <- mdy_hms(sd_wq_bind17$datetime)
+
+
+# 2018
+sd6wq <- sd_apr18 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+sd7wq <- sd_may18 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+sd8wq <- sd_jun18 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+sd9wq <- sd_jul18 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+sd10wq <- sd_aug18 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) 
+
+sd11wq <- sd_sep18 %>% 
+  mutate(`CondmS/cm`=ConduScm/1000) %>% # convert to mS/cm
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+# bind subset df together
+sd_wq_bind18 <- rbind(sd6wq, sd7wq, sd8wq, sd9wq, sd10wq, sd11wq)
+
+# create datetime column and specify as POSIXct format
+sd_wq_bind18 <- sd_wq_bind18 %>%  
+  unite(datetime,Date,Time, sep=" ") 
+sd_wq_bind18$datetime <- mdy_hms(sd_wq_bind18$datetime)
+
+# BIND THEM TOGETHER AND CORRECT FOR DAYLIGHT SAVINGs
+sd_wq_bindall <- rbind(sd_wq_bind17, sd_wq_bind18)
+
+sd_wq_bindall$datetime <- ymd_hms(sd_wq_bindall$datetime, tz="America/Los_Angeles")
+sd_wq_bindall$Deployment <- as_date(sd_wq_bindall$Deployment)
+
+# final tidied df
+sd_wq_bindall2 <- sd_wq_bindall %>% 
+  mutate(datetime_DLS= datetime + hours(1)) %>%  # adjust for DLS
+  mutate(SiteName="SD") %>% # SD= sheldrake
+  # now round digits to match the NERR dataframe
+  mutate(Depth=round(Depth, digits=2), Turb=round(Turb, digits=0), 
+         DO_mgl=round(DO_mgl, digits=1), DO_pct=round(DO_pct, digits=1),
+         Temp=round(Temp, digits=1), `CondmS/cm`=round(`CondmS/cm`, digits=2),
+         SpCond=round(SpCond, digits=2), Sal=round(Sal, digits=1), pH=round(pH, digits=1))
+
+# export df - 11/29/2018
+# only execute this if you intend to write over file in folder
+#sd_wq_bindall2 %>% 
+ # write_csv("sondes/Data_output/CMP_Data_Sheldrake_Sonde_2017_2018_Tidied.csv")
+```
+
+
+## Lower Peytonia
+```{r}
+# IMPORT DATA
+# 2017
+pt_june17 <- read_csv("sondes/Data/LowerPeytonia/sfblpwq060517_QC.csv") %>% 
+  mutate(Deployment="2017-06-08") # removed first 294 rows in Excel
+
+pt_july17 <- read_csv("sondes/Data/LowerPeytonia/sfblpwq070617_QC.csv") %>% 
+  mutate(Deployment="2017-07-06") # checked
+
+pt_july17_2 <- read_csv("sondes/Data/LowerPeytonia/sfblpwq072017_QC.csv") %>% 
+  mutate(Deployment="2017-07-20") # checked
+
+pt_aug17 <- read_csv("sondes/Data/LowerPeytonia/sfblpwq081817_QC.csv") %>% 
+  mutate(Deployment="2017-08-18") # checked
+
+pt_sep17 <- read_csv("sondes/Data/LowerPeytonia/sfblpwq091417_QC.csv") %>% 
+  mutate(Deployment="2017-09-14") # checked
+
+# 2018
+pt_apr18 <- read_csv("sondes/Data/LowerPeytonia/LP041318_QC.csv") %>% 
+  mutate(Deployment="2018-04-13") # checked
+
+pt_may18 <- read_csv("sondes/Data/LowerPeytonia/LP051118_QC.csv") %>% 
+  mutate(Deployment="2018-05-11") # checked
+
+pt_jun18 <- read_csv("sondes/Data/LowerPeytonia/LP060718_QC.csv") %>% 
+  mutate(Deployment="2018-06-07") # removed last row
+
+pt_jul18 <- read_csv("sondes/Data/LowerPeytonia/LP070518_QC.csv") %>% 
+  mutate(Deployment="2018-07-05") # removed a bunch at the end
+
+pt_aug18 <- read_csv("sondes/Data/LowerPeytonia/sfbwqlp080218_QC.csv") %>% 
+  mutate(Deployment="2018-08-02") # removed first two rows and last 302 rows
+
+pt_sep18 <- read_csv("sondes/Data/LowerPeytonia/sfbwqlp083018_QC.csv") %>% 
+  mutate(Deployment="2018-08-30") # removed last 5 rows
+
+
+# SUBSET DATA
+# 2017
+pt1wq <- pt_june17 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+pt2wq <- pt_july17 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+pt3wq <- pt_july17_2 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+pt4wq <- pt_aug17 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+pt5wq <- pt_sep17 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+# 2018
+pt6wq <- pt_apr18 %>% 
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+pt7wq <- pt_may18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+pt8wq <- pt_jun18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+pt9wq <- pt_jul18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+pt10wq <- pt_aug18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+pt11wq <- pt_sep18 %>%
+  mutate(`CondmS/cm`=ConduScm/1000) %>% # convert to mS/cm
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+# bind subset df together
+pt_wq_bind <- rbind(pt1wq,pt2wq,pt3wq,pt4wq,pt5wq, pt6wq, pt7wq, pt8wq, pt9wq, pt10wq, pt11wq)
+
+# create datetime column and specify as POSIXct format
+pt_wq_bind2 <- pt_wq_bind %>%  
+  unite(datetime,Date,Time, sep=" ") 
+pt_wq_bind2$datetime <- mdy_hms(pt_wq_bind2$datetime, tz="America/Los_Angeles")
+pt_wq_bind2$Deployment <- as_date(pt_wq_bind2$Deployment)
+
+# final tidied df
+pt_wq_bind3 <- pt_wq_bind2 %>% 
+  mutate(datetime_DLS= datetime + hours(1)) %>%  # adjust for DLS
+  mutate(SiteName="PT") %>% # PT = peytonia
+  # now round digits to match the NERR dataframe
+  mutate(Depth=round(Depth, digits=2), Turb=round(Turb, digits=0), 
+         DO_mgl=round(DO_mgl, digits=1), DO_pct=round(DO_pct, digits=1),
+         Temp=round(Temp, digits=1), `CondmS/cm`=round(`CondmS/cm`, digits=2),
+         SpCond=round(SpCond, digits=2), Sal=round(Sal, digits=1), pH=round(pH, digits=1))
+
+# export df- 11/29/2018
+#pt_wq_bind3 %>% 
+ # write_csv("sondes/Data_output/CMP_Data_Peytonia_Sonde_2017_2018_Tidied.csv")
+```
+
+## Lower Hill
+```{r}
+# IMPORT DATA
+# 2017
+hl_june17 <- read_csv("sondes/Data/LowerHill/sfblhwq060517_QC.csv") %>% 
+  mutate(Deployment="2017-06-08") # remove first 288 rows from Excel file
+
+hl_july17 <- read_csv("sondes/Data/LowerHill/sfblhwq070617_QC.csv") %>% 
+  mutate(Deployment="2017-07-06") # QC
+
+hl_july17_2 <- read_csv("sondes/Data/LowerHill/sfblhwq072017_QC.csv") %>% 
+  mutate(Deployment="2017-07-20") # QC
+
+hl_aug17 <- read_csv("sondes/Data/LowerHill/sfblhwq081817_QC.csv") %>% 
+  mutate(Deployment="2017-08-18") # QC
+
+hl_sep17 <- read_csv("sondes/Data/LowerHill/sfblhwq091417_QC.csv") %>% 
+  mutate(Deployment="2017-09-14") # QC
+
+# 2018
+hl_apr18 <- read_csv("sondes/Data/LowerHill/LHS041318_QC.csv") %>% 
+  mutate(Deployment="2018-04-13") # Removed first 14 rows and last row
+
+hl_may18 <- read_csv("sondes/Data/LowerHill/LHS051118_QC.csv") %>% 
+  mutate(Deployment="2018-05-11") # Removed last 2 rows
+
+hl_jun18 <- read_csv("sondes/Data/LowerHill/LHS060718_QC.csv") %>% 
+  mutate(Deployment="2018-06-07") # Removed last row
+
+hl_jul18 <- read_csv("sondes/Data/LowerHill/LHS070518_QC.csv") %>% 
+  mutate(Deployment="2018-07-05") # Removed last row
+
+hl_aug18 <- read_csv("sondes/Data/LowerHill/sfbwqlhs080218_QC.csv") %>% 
+  mutate(Deployment="2018-08-02") # QC
+
+hl_sep18 <- read_csv("sondes/Data/LowerHill/sfbwqlhs083018_QC.csv") %>% 
+  mutate(Deployment="2018-08-30") # Removed last 4 rows
+
+# SUBSET
+# 2017
+hl1wq <- hl_june17 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, SpCond, Sal, 
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+hl2wq <- hl_july17 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+hl3wq <- hl_july17_2 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+hl4wq <- hl_aug17 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+hl5wq <- hl_sep17 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment) %>%
+  mutate(`CondmS/cm`=NA) # placeholder: no CondmS/cm measured
+
+# 2018
+hl6wq <- hl_apr18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+hl7wq <- hl_may18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+hl8wq <- hl_jun18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+hl9wq <- hl_jul18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+hl10wq <- hl_aug18 %>%
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+hl11wq <- hl_sep18 %>%
+  mutate(`CondmS/cm`=ConduScm/1000) %>% # convert to mS/cm
+  select(Date, Time, SiteName, Depth, Turb, DO_mgl, DO_pct, Temp, `CondmS/cm`, Sal, SpCond,
+         pH, ChlorophyllugL, fDOMQSU, Deployment)
+
+# bind subset df together
+hl_wq_bind <- rbind(hl1wq,hl2wq,hl3wq,hl4wq,hl5wq, hl6wq, hl7wq, hl8wq, hl9wq, hl10wq, hl11wq)
+
+# create datetime column and specify as POSIXct format
+hl_wq_bind2 <- hl_wq_bind %>%
+  unite(datetime,Date,Time, sep=" ")
+hl_wq_bind2$datetime <- mdy_hms(hl_wq_bind2$datetime, tz="America/Los_Angeles")
+hl_wq_bind2$Deployment <- as_date(hl_wq_bind2$Deployment)
+
+# final tidied df
+hl_wq_bind3 <- hl_wq_bind2 %>% 
+  mutate(datetime_DLS= datetime + hours(1)) %>%  # adjust for DLS
+  mutate(SiteName="HL") %>% # HL = Hill
+  # now round digits to match the NERR dataframe
+  mutate(Depth=round(Depth, digits=2), Turb=round(Turb, digits=0), 
+         DO_mgl=round(DO_mgl, digits=1), DO_pct=round(DO_pct, digits=1),
+         Temp=round(Temp, digits=1), `CondmS/cm`=round(`CondmS/cm`, digits=2),
+         SpCond=round(SpCond, digits=2),
+         Sal=round(Sal, digits=1), pH=round(pH, digits=1))
+
+# export df - 11/29/2018
+#hl_wq_bind3 %>% 
+ # write_csv("sondes/Data_output/CMP_Data_Hill_Sonde_2017_2018_Tidied.csv")
+```
+
+Step 2.
+
+Import data from First Mallard Branch (also known as "Spring Branch") that can
+be downloaded from the NERR website http://cdmo.baruch.sc.edu/ 
+
+Note: As of November 2018, currently waiting to get Chlorophyll-a and fDOM data from Brian Bergamaschi at the USGS California Water Science Center, who also maintains a sonde
+at the First Mallard site. (The NERR discontinued their collection of these at this
+particular site)
+
+## First Mallard
+```{r}
+# IMPORT DATA
+# 2017
+fm17 <- read_csv("sondes/Data/FirstMallard/FM_sonde_2017_NERRdata.csv") %>% 
+  select(DateTimeStamp, cDepth, Turb, DO_mgl, DO_pct, Temp, SpCond, Sal, pH) %>% 
+  mutate(cDepth=ifelse(cDepth<0, NA, cDepth)) %>%  # turn negative into NAs
+  rename(datetime=DateTimeStamp, Depth=cDepth) %>% 
+  mutate(Deployment=NA, `CondmS/cm`=NA) # the NERR data files don't provide this column
+
+fm17$datetime <- mdy_hm(fm17$datetime, tz="America/Los_Angeles")
+
+fm17_2 <- fm17 %>% 
+  mutate(datetime_DLS= datetime + hours(1)) # daylight savings time adjustmt
+
+# 2018
+fm18 <- read_csv("sondes/Data/FirstMallard/FM_sonde_2018_NERRdata.csv") %>% 
+  select(DateTimeStamp, cDepth, Turb, DO_mgl, DO_pct, Temp, SpCond, Sal, pH) %>% 
+  mutate(cDepth=ifelse(cDepth<0, NA, cDepth)) %>%  
+  rename(datetime=DateTimeStamp, Depth=cDepth) %>% 
+  mutate(Deployment=NA, `CondmS/cm`=NA)
+
+fm18$datetime <- mdy_hm(fm18$datetime, tz="America/Los_Angeles")
+
+fm18_2 <- fm18 %>% 
+  mutate(datetime_DLS= datetime + hours(1))
+
+# final tidied df
+fm_wq_bind <- rbind(fm17_2, fm18_2) %>% 
+  mutate(SiteName="FM", ChlorophyllugL=NA, fDOMQSU=NA)
+  # placeholders for chlorophyll and fdom until we get data from Brian Bergamaschi USGS
+
+# export df - 11/29/2018
+#fm_wq_bind %>% write_csv("sondes/Data_output/CMP_Data_FirstMallard_Sonde_2017_2018_Tidied.csv")
+```
+
+Step 3.
+
+Create a tidy dataframe that has all sites and years
+
+# Re-import tidy df
+```{r}
+# sheldrake
+sheldrake <- read_csv("sondes/Data_output/CMP_Data_Sheldrake_Sonde_2017_2018_Tidied.csv")
+sheldrake$datetime <- as_datetime(sheldrake$datetime, tz="America/Los_Angeles")
+sheldrake$datetime_DLS <- as_datetime(sheldrake$datetime_DLS, tz="America/Los_Angeles")
+
+# peytonia
+peytonia <- read_csv("sondes/Data_output/CMP_Data_Peytonia_Sonde_2017_2018_Tidied.csv")
+peytonia$datetime <- as_datetime(peytonia$datetime, tz="America/Los_Angeles")
+peytonia$datetime_DLS <- as_datetime(peytonia$datetime_DLS, tz="America/Los_Angeles")
+
+# hill
+hill <- read_csv("sondes/Data_output/CMP_Data_Hill_Sonde_2017_2018_Tidied.csv") 
+hill$datetime <- as_datetime(hill$datetime, tz="America/Los_Angeles")
+hill$datetime_DLS <- as_datetime(hill$datetime_DLS, tz="America/Los_Angeles")
+
+# first mallard aka spring branch
+firstmallard <- read_csv("sondes/Data_output/CMP_Data_FirstMallard_Sonde_2017_2018_Tidied.csv")
+firstmallard$datetime <- as_datetime(firstmallard$datetime, tz="America/Los_Angeles")
+firstmallard$datetime_DLS <- as_datetime(firstmallard$datetime_DLS, tz="America/Los_Angeles")
+```
+
+Step 4. Export tidy dataframe with all sites and years (find in sonde/Data_output/.. folder)
+
+# Export in one df
+```{r}
+# bind all sloughs together
+wqall <- rbind(sheldrake, peytonia, hill, firstmallard) 
+
+# create new columns
+wqall$Mo <- month(wqall$datetime_DLS)
+wqall$Date <- date(wqall$datetime_DLS)
+wqall$Yr <- year(wqall$datetime_DLS)
+wqall2 <- wqall %>% 
+  mutate(Season=ifelse(Mo<6, "Spring", ifelse(Mo>8, "Autumn", "Summer"))) %>% 
+  rename(Chla_field=ChlorophyllugL)  # not yet calibrated by Dahlgren lab values
+  
+# export df
+#wqall2 %>% write_csv("sondes/Data_output/CMP_Data_Sonde_All_Sites_2017_2018_Tidied.csv")
+```
+
+Step 5. 
+
+# Import final tidy df
+```{r}
+sondeall <- read_csv("sondes/Data_output/CMP_Data_Sonde_All_Sites_2017_2018_Tidied.csv")
+```
+

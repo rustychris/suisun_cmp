@@ -1,0 +1,268 @@
+---
+title: "CMP_Suisun_nutrients_script"
+author: "Denise Colombano"
+date: "November 29, 2018"
+output: html_document
+---
+
+# Libraries
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+** For final tidy dataframe, skip down to Step 3**
+
+Notes:
+
+- Raw data originates from three different spreadsheets: (1) Dahlgren lab values of EC, 
+pH, turbidity, TSS, VSS, measured by undergraduate interns; (2) Dahlgren lab values of
+nutrients such as nitrate, phosphate, etc., measured by the lab manager Xien; (3) field
+data records of when the autosampler samples were taken in the field. All of the field
+record timestamps (hourly) were rounded to the nearest 15-min interval to match up to the 
+sonde data recorded nearby and have the extension "DLS" to match up with the Daylight 
+Savings corrected date-times in the sonde files.
+
+- In step 1 below, I export my nutrient dataset for each site and then use that csv to
+manually add columns in Excel for "Deployment" and "Time". It should be the only time that
+I go back and forth between Excel and R. (It's not worth coding it). The autosampler start
+times can be found on the Box website (https://ucdavis.app.box.com/folder/46200246118)
+
+- As of 11/29/2018, we should get the Chl-a lab values soon and we can add them to this
+dataset and then use them to calibrate the field values measured by the sonde.
+
+- The number of types of nutrients measured are different for 2017 and 2018. There may
+need to be some conversions of units (all of which are specified in column names)
+
+
+Step 1.
+
+Import QC'd data from grab samples in 2017. The raw datasheets include all sites, but I 
+will separate them by site for tidying.
+
+
+# Import nutrient data
+
+## 2017
+```{r}
+nutrients17 <- read_csv("nutrients/Data/CMP_Data_Nutrients_All_SummerFall_2017.csv")
+View(nutrients17)
+
+# lubridate
+nutrients17$Date <- mdy(nutrients17$Date)
+nutrients17$ID2 <- 1:899
+```
+
+### First Mallard
+```{r}
+# subset FM
+fmnut17 <- nutrients17 %>% 
+  filter(Site=="FM" | Site=="F M") %>%  # someone entered a space by accident
+  mutate(Site="FM") # remove the space
+
+#fmnut17 %>% write_csv("nutrients/Data_output/CMP_Data_FirstMallard_Nutrients_SummerFall_2017.csv")
+
+# In Excel, find autosampler start times from field data sheet, add to this csv
+# reimport updated file with the "_Auto" name
+
+fmnut17_auto <- 
+  read_csv("nutrients/Data_output/CMP_Data_FirstMallard_Nutrients_SummerFall_2017_Auto.csv") %>% 
+  rename(ID=CMP)
+View(fmnut17_auto)
+
+# lubridate
+fmnut17_auto$Date <- mdy(fmnut17_auto$Date)
+
+# unite Date and Time and round to nearest 15 min interval in new datetime column
+fmnut17_auto <- fmnut17_auto %>% 
+  unite("datetime", c("Date","Time"), sep=" ")
+
+#lubridate
+fmnut17_auto$datetime <- as_datetime(fmnut17_auto$datetime) 
+fmnut17_auto$datetime_DLS <- round_date(fmnut17_auto$datetime, "15 mins") # match sondes
+
+head(fmnut17_auto) # et voila!
+
+# export df
+#fmnut17_auto %>% 
+ # write_csv("nutrients/Data_output/CMP_Data_FirstMallard_Nutrients_2017_Tidied.csv")
+```
+
+### Sheldrake
+```{r}
+# subset SD
+sdnut17 <- nutrients17 %>% 
+  filter(Site=="SD" | Site=="S D") %>%  # someone entered a space by accident
+  mutate(Site="SD") # remove the space
+
+#sdnut17 %>% write_csv("nutrients/Data_output/CMP_Data_Sheldrake_Nutrients_SummerFall_2017.csv")
+
+# In Excel, find autosampler start times from field data sheet, add to this csv
+# reimport updated file with the "_Auto" name
+
+sdnut17_auto <- 
+  read_csv("nutrients/Data_output/CMP_Data_Sheldrake_Nutrients_SummerFall_2017_Auto.csv")
+View(sdnut17_auto)
+
+# lubridate
+sdnut17_auto$Date <- mdy(sdnut17_auto$Date, tz="America/Los_Angeles")
+
+# unite Date and Time and round to nearest 15 min interval in new datetime column
+sdnut17_auto <- sdnut17_auto %>% 
+  unite("datetime", c("Date","Time"), sep=" ")
+
+#lubridate
+sdnut17_auto$datetime <- as_datetime(sdnut17_auto$datetime, tz="America/Los_Angeles") 
+sdnut17_auto$datetime_DLS <- round_date(sdnut17_auto$datetime, "15 mins")
+
+head(sdnut17_auto) # et voila!
+
+# export df
+#sdnut17_auto %>% 
+ # write_csv("nutrients/Data_output/CMP_Data_Sheldrake_Nutrients_2017_Tidied.csv")
+```
+
+### Peytonia
+```{r}
+# subset PT
+ptnut17 <- nutrients17 %>% 
+  filter(Site=="PT")
+
+ptnut17 %>% write_csv("nutrients/Data_output/CMP_Data_Peytonia_Nutrients_SummerFall_2017.csv")
+
+# In Excel, find autosampler start times from field data sheet, add to this csv
+# reimport updated file with the "_Auto" name
+
+ptnut17_auto <- 
+  read_csv("nutrients/Data_output/CMP_Data_Peytonia_Nutrients_SummerFall_2017_Auto.csv")
+View(ptnut17_auto)
+
+# lubridate
+ptnut17_auto$Date <- mdy(ptnut17_auto$Date, tz="America/Los_Angeles")
+
+# unite Date and Time and round to nearest 15 min interval in new datetime column
+ptnut17_auto <- ptnut17_auto %>% 
+  unite("datetime", c("Date","Time"), sep=" ")
+
+#lubridate
+ptnut17_auto$datetime <- as_datetime(ptnut17_auto$datetime, tz="America/Los_Angeles") 
+ptnut17_auto$datetime_DLS <- round_date(ptnut17_auto$datetime, "15 mins")
+
+head(ptnut17_auto) # et voila!
+
+# export df
+#ptnut17_auto %>% 
+ # write_csv("nutrients/Data_output/CMP_Data_Peytonia_Nutrients_2017_Tidied.csv")
+
+# note: PT bottle #0 was a single water grab
+```
+
+### Hill Slough
+```{r}
+# subset HL
+hlnut17 <- nutrients17 %>% 
+  filter(Site=="HL" | Site=="H L") %>%  # someone entered a space by accident
+  mutate(Site="HL") # fix space
+  
+hlnut17 %>% write_csv("nutrients/Data_output/CMP_Data_Hill_Nutrients_SummerFall_2017.csv")
+
+hlnut17_id2 <- hlnut17 %>% # query these columns to join back to dataset later
+  select(ID, ID2) # I forgot to include it in my Excel sheet; lazy workaround
+
+# In Excel, find autosampler start times from field data sheet, add to this csv
+# reimport updated file with the "_Auto" name
+
+hlnut17_auto <- 
+  read_csv("nutrients/Data_output/CMP_Data_Hill_Nutrients_SummerFall_2017_Auto.csv") %>% 
+  filter(!is.na(Bottle)) %>%  # remove grab samples collected on first day, no timestamp (n=3)
+  inner_join(hlnut17_id2, by="ID") # join back ID2 column
+View(hlnut17_auto)
+
+# lubridate
+hlnut17_auto$Date <- mdy(hlnut17_auto$Date, tz="America/Los_Angeles")
+
+# unite Date and Time and round to nearest 15 min interval in new datetime column
+hlnut17_auto <- hlnut17_auto %>% 
+  unite("datetime", c("Date","Time"), sep=" ")
+
+#lubridate
+hlnut17_auto$datetime <- as_datetime(hlnut17_auto$datetime, tz="America/Los_Angeles") 
+hlnut17_auto$datetime_DLS <- round_date(hlnut17_auto$datetime, "15 mins")
+
+head(hlnut17_auto) # et voila!
+
+# export df
+#hlnut17_auto %>% 
+ # write_csv("nutrients/Data_output/CMP_Data_Hill_Nutrients_2017_Tidied.csv")
+
+# note: HL bottle #0 was a single water grab
+```
+
+### All sites
+```{r}
+nutall17 <- rbind(fmnut17_auto, sdnut17_auto, ptnut17_auto, hlnut17_auto) %>% 
+  mutate(Yr="2017")
+
+nutall17 %>% write_csv("nutrients/Data_output/CMP_Data_Nutrients_All_Sites_2017_Tidied.csv")
+```
+
+
+
+Step 2.
+
+Import QC'd data from grab samples in 2018. The autosampler start times were manually
+entered in the QC'd dataset beforehand; don't need an extra step of exporting/ importing.
+
+- First import data recorded by undergrad interns (EC, pH, Turb, TSS, VSS)
+- Second import Xien's nutrient data (DOC, TN, TP, etc)
+
+- Note: It looks like the units measured are different than in 2017. Also, we decided
+to measure a subset of nutrients compared to the first year, so there will be less columns.
+I believe you need to use the grams of water filtered to calculate the TSS/ VSS mg/L to get
+the same units as 2017. (TSS is measured after being combusted in the 60C oven; VSS is 510C)
+
+## 2018
+```{r}
+# part 1
+nut18_p1 <- read_csv("nutrients/Data/CMP_Nutrients_2018_QAQC_112918.csv") # lab WQ values
+nut18_p2 <- read_csv("nutrients/Data/CMP_Nutrients_2018_QAQC_112918_part2.csv") # Xien nutrients
+
+# POSIXct format
+nut18_p1$Date <- mdy(nut18_p1$Date)
+nut18_p2$Date <- mdy(nut18_p2$Date)
+```
+
+### All sites
+```{r}
+# this join creates a df with only QC'd data, with 1145 rows, removes data in pt 2 
+# that got thrown out when we recollected the samples from May 2018 at 2 sites
+nutall18 <- nut18_p1 %>% 
+  left_join(nut18_p2, by=c("Bottle", "Date", "Site", "ID"))
+
+# unite Date and Time and round to nearest 15 min interval in new datetime column
+nutall18 <- nutall18 %>% 
+  unite("datetime", c("Date","Time"), sep=" ")
+
+#lubridate
+nutall18$datetime <- as_datetime(nutall18$datetime, tz="America/Los_Angeles") 
+nutall18$datetime_DLS <- round_date(nutall18$datetime, "15 mins")
+nutall18$Yr <- year(nutall18$datetime)
+
+# export df
+#nutall18 %>% write_csv("nutrients/Data_output/CMP_Data_Nutrients_All_Sites_2018_Tidied.csv")
+```
+
+Step 3. 
+
+These are the final tidy dataframes you can use for data analysis and match up to sonde
+data using the "datetime_DLS" column.
+
+# Reimport tidy data
+```{r}
+nut17_tidied <- read_csv("nutrients/Data_output/CMP_Data_Nutrients_All_Sites_2017_Tidied.csv")
+View(nut17_tidied)
+
+nut18_tidied <- read_csv("nutrients/Data_output/CMP_Data_Nutrients_All_Sites_2018_Tidied.csv")
+View(nut18_tidied)
+```
+
