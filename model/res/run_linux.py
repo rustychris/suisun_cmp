@@ -91,7 +91,7 @@ OPERAND=O
 """)
 
 # Request restart files
-model.mdu['output','RstInterval']=7200 # TODO: change to longer
+model.mdu['output','RstInterval']=86400
 
 ##     
 if 1:
